@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-IDS Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <h1>🛡️ AI-Powered Intrusion Detection System</h1>
+        <p>Real-Time Network Threat Detection | NSL-KDD | Random Forest 99.92%</p>
+        <span id="clock"></span>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="cards">
+        <div class="card normal">
+            <h2 id="total-normal">0</h2>
+            <p>✅ Normal Traffic</p>
+        </div>
+        <div class="card attack">
+            <h2 id="total-attacks">0</h2>
+            <p>🚨 Attacks Detected</p>
+        </div>
+        <div class="card total">
+            <h2 id="total-checked">0</h2>
+            <p>🔍 Total Checked</p>
+        </div>
+        <div class="card accuracy">
+            <h2>99.92%</h2>
+            <p>🎯 Model Accuracy</p>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-row">
+        <div class="chart-box">
+            <h3>📊 Live Traffic Monitor</h3>
+            <canvas id="lineChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <h3>🥧 Traffic Breakdown</h3>
+            <canvas id="pieChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Alerts Table -->
+    <div class="alerts-section">
+        <h3>🚨 Recent Alerts</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Confidence</th>
+                    <th>Protocol</th>
+                    <th>Src Bytes</th>
+                </tr>
+            </thead>
+            <tbody id="alerts-table">
+                <tr><td colspan="5">No alerts yet...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Simulate Button -->
+    <div class="simulate-section">
+        <h3>⚡ Simulate Network Traffic</h3>
+        <button onclick="simulateNormal()" class="btn-normal">
+            Simulate Normal Traffic
+        </button>
+        <button onclick="simulateAttack()" class="btn-attack">
+            Simulate Attack Traffic
+        </button>
+        <button onclick="autoSimulate()" class="btn-auto" id="auto-btn">
+            ▶ Start Auto Simulation
+        </button>
+        <div id="result-box"></div>
+    </div>
+
+    <script>
+        // ─── Clock ───────────────────────────────────────────
+        function updateClock() {
+            document.getElementById('clock').textContent =
+                new Date().toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ─── Charts Setup ────────────────────────────────────
+        const lineCtx = document.getElementById('lineChart').getContext('2d');
+        const pieCtx  = document.getElementById('pieChart').getContext('2d');
+
+        const lineChart = new Chart(lineCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Normal',
+                        data: [],
+                        borderColor: '#00e676',
+                        backgroundColor: 'rgba(0,230,118,0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'Attack',
+                        data: [],
+                        borderColor: '#ff1744',
+                        backgroundColor: 'rgba(255,23,68,0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                animation: { duration: 300 },
+                scales: {
+                    y: { beginAtZero: true, ticks: { color: '#ccc' }, grid: { color: '#333' } },
+                    x: { ticks: { color: '#ccc' }, grid: { color: '#333' } }
+                },
+                plugins: { legend: { labels: { color: '#ccc' } } }
+            }
+        });
+
+        const pieChart = new Chart(pieCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Normal', 'Attack'],
+                datasets: [{
+                    data: [1, 0],
+                    backgroundColor: ['#00e676', '#ff1744'],
+                    borderColor: '#1a1a2e',
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: '#ccc' } } }
+            }
+        });
+
+        // ─── Counters ─────────────────────────────────────────
+        let normalCount = 0;
+        let attackCount = 0;
+        let lineLabels  = [];
+        let lineNormal  = [];
+        let lineAttack  = [];
+
+        function updateStats(label) {
+            if (label === 'NORMAL') normalCount++;
+            else attackCount++;
+
+            const total = normalCount + attackCount;
+            document.getElementById('total-normal').textContent  = normalCount;
+            document.getElementById('total-attacks').textContent = attackCount;
+            document.getElementById('total-checked').textContent = total;
+
+            // Update pie chart
+            pieChart.data.datasets[0].data = [normalCount, attackCount];
+            pieChart.update();
+
+            // Update line chart
+            const t = new Date().toLocaleTimeString();
+            lineLabels.push(t);
+            lineNormal.push(normalCount);
+            lineAttack.push(attackCount);
+            if (lineLabels.length > 15) {
+                lineLabels.shift(); lineNormal.shift(); lineAttack.shift();
+            }
+            lineChart.data.labels                    = lineLabels;
+            lineChart.data.datasets[0].data          = lineNormal;
+            lineChart.data.datasets[1].data          = lineAttack;
+            lineChart.update();
+        }
+
+        // ─── Alerts Table ─────────────────────────────────────
+        function addAlertRow(result, data) {
+            const tbody = document.getElementById('alerts-table');
+            if (tbody.innerHTML.includes('No alerts')) tbody.innerHTML = '';
+
+            const row = document.createElement('tr');
+            row.className = result.label === 'ATTACK' ? 'row-attack' : 'row-normal';
+            row.innerHTML = `
+                <td>${new Date().toLocaleTimeString()}</td>
+                <td><span class="badge ${result.label === 'ATTACK' ? 'badge-attack' : 'badge-normal'}">
+                    ${result.label}</span></td>
+                <td>${result.confidence}%</td>
+                <td>${data.protocol_type}</td>
+                <td>${data.src_bytes}</td>
+            `;
+            tbody.insertBefore(row, tbody.firstChild);
+            if (tbody.rows.length > 10) tbody.deleteRow(tbody.rows.length - 1);
+        }
+
+        // ─── Predict Function ─────────────────────────────────
+        async function predict(data) {
+            const res    = await fetch('/predict', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify(data)
+            });
+            const result = await res.json();
+
+            updateStats(result.label);
+            addAlertRow(result, data);
+
+            const box = document.getElementById('result-box');
+            box.className   = result.label === 'ATTACK' ? 'result-attack' : 'result-normal';
+            box.textContent = `${result.label === 'ATTACK' ? '🚨' : '✅'} 
+                ${result.label} — Confidence: ${result.confidence}%`;
+        }
+
+        // ─── Sample Traffic Data ──────────────────────────────
+        function normalTraffic() {
+            return {
+                duration: 0, protocol_type: 'tcp', service: 'http',
+                flag: 'SF', src_bytes: Math.floor(Math.random()*500+100),
+                dst_bytes: Math.floor(Math.random()*5000+1000),
+                land: 0, wrong_fragment: 0, urgent: 0, hot: 0,
+                num_failed_logins: 0, logged_in: 1, num_compromised: 0,
+                root_shell: 0, su_attempted: 0, num_root: 0,
+                num_file_creations: 0, num_shells: 0, num_access_files: 0,
+                num_outbound_cmds: 0, is_host_login: 0, is_guest_login: 0,
+                count: 8, srv_count: 8, serror_rate: 0, srv_serror_rate: 0,
+                rerror_rate: 0, srv_rerror_rate: 0, same_srv_rate: 1,
+                diff_srv_rate: 0, srv_diff_host_rate: 0, dst_host_count: 255,
+                dst_host_srv_count: 255, dst_host_same_srv_rate: 1,
+                dst_host_diff_srv_rate: 0, dst_host_same_src_port_rate: 0,
+                dst_host_srv_diff_host_rate: 0, dst_host_serror_rate: 0,
+                dst_host_srv_serror_rate: 0, dst_host_rerror_rate: 0,
+                dst_host_srv_rerror_rate: 0
+            };
+        }
+
+        function attackTraffic() {
+            return {
+                duration: 0, protocol_type: 'tcp', service: 'private',
+                flag: 'S0', src_bytes: 0, dst_bytes: 0,
+                land: 0, wrong_fragment: 0, urgent: 0, hot: 0,
+                num_failed_logins: 0, logged_in: 0, num_compromised: 0,
+                root_shell: 0, su_attempted: 0, num_root: 0,
+                num_file_creations: 0, num_shells: 0, num_access_files: 0,
+                num_outbound_cmds: 0, is_host_login: 0, is_guest_login: 0,
+                count: 511, srv_count: 511, serror_rate: 1, srv_serror_rate: 1,
+                rerror_rate: 0, srv_rerror_rate: 0, same_srv_rate: 1,
+                diff_srv_rate: 0, srv_diff_host_rate: 0, dst_host_count: 255,
+                dst_host_srv_count: 255, dst_host_same_srv_rate: 1,
+                dst_host_diff_srv_rate: 0, dst_host_same_src_port_rate: 1,
+                dst_host_srv_diff_host_rate: 0, dst_host_serror_rate: 1,
+                dst_host_srv_serror_rate: 1, dst_host_rerror_rate: 0,
+                dst_host_srv_rerror_rate: 0
+            };
+        }
+
+        // ─── Buttons ──────────────────────────────────────────
+        function simulateNormal() { predict(normalTraffic()); }
+        function simulateAttack() { predict(attackTraffic()); }
+
+        let autoInterval = null;
+        function autoSimulate() {
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+                document.getElementById('auto-btn').textContent = '▶ Start Auto Simulation';
+            } else {
+                autoInterval = setInterval(() => {
+                    Math.random() > 0.3 ? simulateNormal() : simulateAttack();
+                }, 1500);
+                document.getElementById('auto-btn').textContent = '⏹ Stop Auto Simulation';
+            }
+        }
+    </script>
+</body>
+</html>
