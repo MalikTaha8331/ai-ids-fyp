@@ -1,3 +1,10 @@
+# Large dataset files
+data/raw/
+data/processed/
+
+# Saved ML models
+models/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -23,10 +30,3 @@ dist/
 # OS files
 .DS_Store
 Thumbs.db
-
-# Large dataset files
-data/raw/
-data/processed/
-
-# Saved ML models
-models/

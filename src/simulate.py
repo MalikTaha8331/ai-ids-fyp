@@ -91,26 +91,43 @@ try:
                 timeout=5
             )
             result = response.json()
-            predicted = result['prediction']
+
+            # Check for errors
+            if 'error' in result:
+                print(f"API Error on record {i}: {result['error']}")
+                total += 1
+                continue
+
+            predicted = result.get('prediction', -1)
 
             # Track accuracy
             if predicted == actual:
                 correct += 1
             total += 1
 
-            status = "✅" if predicted == 0 else "🚨"
+            category = result.get('category', 'UNKNOWN')
+            conf     = result.get('confidence', 0)
+            blocked  = '🚫 AUTO-BLOCKED' if result.get('blocked') else ''
+
+            icons = {
+                'NORMAL':          '✅',
+                'SUSPICIOUS':      '⚪',
+                'MODERATE THREAT': '🟡',
+                'SEVERE THREAT':   '🔴'
+            }
+            icon   = icons.get(category, '🔍')
             match  = "✓" if predicted == actual else "✗"
 
-            print(f"[{total:04d}] {status} {result['label']:7s} "
-                  f"| Conf: {result['confidence']:5.1f}% "
+            print(f"[{total:04d}] {icon} {category:15s} "
+                  f"| Conf: {conf:5.1f}% "
                   f"| Actual: {'Normal' if actual==0 else 'Attack':7s} "
                   f"| {match} "
-                  f"| Acc: {correct/total*100:.1f}%")
+                  f"| Acc: {correct/total*100:.1f}% {blocked}")
 
         except Exception as e:
             print(f"Error sending record {i}: {e}")
+            total += 1
 
-        # Random delay between 0.3 and 0.8 seconds
         time.sleep(random.uniform(0.3, 0.8))
 
 except KeyboardInterrupt:

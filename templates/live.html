@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Traffic Monitor — AI-IDS</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <h1>📡 Live Traffic Monitor</h1>
+        <p>Real-Time Packet Analysis | AI-Powered Classification</p>
+        <span id="clock"></span>
+    </div>
+
+    <!-- Nav -->
+    <div class="nav-bar">
+        <a href="/" class="nav-btn">🛡️ Main Dashboard</a>
+        <a href="/live" class="nav-btn active">📡 Live Traffic</a>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="cards" style="grid-template-columns: repeat(5, 1fr)">
+        <div class="card normal">
+            <h2 id="cnt-normal">0</h2>
+            <p>✅ Normal</p>
+        </div>
+        <div class="card severe">
+            <h2 id="cnt-severe">0</h2>
+            <p>🔴 Severe</p>
+        </div>
+        <div class="card moderate">
+            <h2 id="cnt-moderate">0</h2>
+            <p>🟡 Moderate</p>
+        </div>
+        <div class="card suspicious">
+            <h2 id="cnt-suspicious">0</h2>
+            <p>⚪ Suspicious</p>
+        </div>
+        <div class="card total">
+            <h2 id="cnt-total">0</h2>
+            <p>🔍 Total Packets</p>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-row">
+        <div class="chart-box">
+            <h3>📊 Live Packet Rate</h3>
+            <canvas id="packetChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <h3>🥧 Protocol Breakdown</h3>
+            <canvas id="protoChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section">
+        <h3>🔍 Filter Traffic</h3>
+        <div class="filters">
+            <select id="filter-protocol" onchange="applyFilters()">
+                <option value="">All Protocols</option>
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP</option>
+                <option value="icmp">ICMP</option>
+            </select>
+            <select id="filter-service" onchange="applyFilters()">
+                <option value="">All Services</option>
+                <option value="http">HTTP</option>
+                <option value="ftp">FTP</option>
+                <option value="ssh">SSH</option>
+                <option value="smtp">SMTP</option>
+                <option value="private">Private</option>
+                <option value="domain">DNS</option>
+                <option value="telnet">Telnet</option>
+                <option value="ecr_i">ICMP Echo</option>
+            </select>
+            <select id="filter-category" onchange="applyFilters()">
+                <option value="">All Categories</option>
+                <option value="normal">Normal</option>
+                <option value="suspicious">Suspicious</option>
+                <option value="moderate threat">Moderate Threat</option>
+                <option value="severe threat">Severe Threat</option>
+            </select>
+            <button onclick="clearFilters()" class="btn-auto">
+                🔄 Clear Filters
+            </button>
+            <button onclick="togglePause()" class="btn-attack" id="pause-btn">
+                ⏸ Pause
+            </button>
+        </div>
+    </div>
+
+    <!-- Live Traffic Table -->
+    <div class="alerts-section">
+        <h3>📋 Live Traffic Feed
+            <span id="packet-count" style="font-size:0.8rem; color:#aaa; margin-left:10px;">
+                0 packets
+            </span>
+        </h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Src IP</th>
+                    <th>Protocol</th>
+                    <th>Service</th>
+                    <th>Port/Flag</th>
+                    <th>Bytes</th>
+                    <th>Category</th>
+                    <th>Confidence</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="traffic-table">
+                <tr><td colspan="9" style="text-align:center">
+                    Waiting for traffic... Start sniffer.py to see live data
+                </td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // ─── Clock ────────────────────────────────────────────
+        function updateClock() {
+            document.getElementById('clock').textContent =
+                new Date().toLocaleTimeString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ─── Charts ───────────────────────────────────────────
+        const packetCtx = document.getElementById('packetChart').getContext('2d');
+        const protoCtx  = document.getElementById('protoChart').getContext('2d');
+
+        const packetChart = new Chart(packetCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Normal',   data: [], borderColor: '#00e676', tension: 0.4, fill: false },
+                    { label: 'Severe',   data: [], borderColor: '#ff1744', tension: 0.4, fill: false },
+                    { label: 'Moderate', data: [], borderColor: '#ffd740', tension: 0.4, fill: false },
+                    { label: 'Suspicious', data: [], borderColor: '#aaa',  tension: 0.4, fill: false }
+                ]
+            },
+            options: {
+                responsive: true,
+                animation: { duration: 200 },
+                scales: {
+                    y: { beginAtZero: true, ticks: { color: '#ccc' }, grid: { color: '#333' } },
+                    x: { ticks: { color: '#ccc' }, grid: { color: '#333' } }
+                },
+                plugins: { legend: { labels: { color: '#ccc' } } }
+            }
+        });
+
+        const protoChart = new Chart(protoCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['TCP', 'UDP', 'ICMP'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: ['#448aff', '#00e676', '#ffd740'],
+                    borderColor: '#1a1a2e',
+                    borderWidth: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: '#ccc' } } }
+            }
+        });
+
+        // ─── State ────────────────────────────────────────────
+        let paused   = false;
+        let counts   = { normal: 0, severe: 0, moderate: 0, suspicious: 0 };
+        let protoCounts = { TCP: 0, UDP: 0, ICMP: 0 };
+        let lineData = { normal: [], severe: [], moderate: [], suspicious: [] };
+        let lineLabels = [];
+        let lastCount  = 0;
+
+        // ─── Filters ──────────────────────────────────────────
+        function applyFilters() { fetchTraffic(); }
+
+        function clearFilters() {
+            document.getElementById('filter-protocol').value = '';
+            document.getElementById('filter-service').value  = '';
+            document.getElementById('filter-category').value = '';
+            fetchTraffic();
+        }
+
+        function togglePause() {
+            paused = !paused;
+            document.getElementById('pause-btn').textContent =
+                paused ? '▶ Resume' : '⏸ Pause';
+        }
+
+        // ─── Fetch Traffic ────────────────────────────────────
+        async function fetchTraffic() {
+            if (paused) return;
+
+            const protocol = document.getElementById('filter-protocol').value;
+            const service  = document.getElementById('filter-service').value;
+            const category = document.getElementById('filter-category').value;
+
+            let url = '/traffic?';
+            if (protocol) url += `protocol=${protocol}&`;
+            if (service)  url += `service=${service}&`;
+            if (category) url += `category=${category}&`;
+
+            try {
+                const res  = await fetch(url);
+                const data = await res.json();
+
+                if (data.length === lastCount && !protocol && !service && !category) return;
+                lastCount = data.length;
+
+                updateTable(data);
+                updateStats(data);
+                updateCharts(data);
+
+            } catch (e) { console.error(e); }
+        }
+
+        // ─── Update Table ─────────────────────────────────────
+        function updateTable(data) {
+            const tbody = document.getElementById('traffic-table');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">No matching traffic...</td></tr>';
+                return;
+            }
+
+            // Show newest first
+            [...data].reverse().forEach(t => {
+                const row = document.createElement('tr');
+                row.className = `row-${t.color || 'gray'}`;
+                const status = t.blocked
+                    ? '<span class="auto-blocked-badge">🚫 Blocked</span>'
+                    : `<span class="badge badge-${t.color || 'gray'}">${t.category}</span>`;
+
+                row.innerHTML = `
+                    <td>${t.time}</td>
+                    <td><strong>${t.src_ip}</strong></td>
+                    <td><span class="proto-badge proto-${t.protocol?.toLowerCase()}">${t.protocol}</span></td>
+                    <td>${t.service}</td>
+                    <td>${t.flag || '—'}</td>
+                    <td>${t.src_bytes} B</td>
+                    <td>${status}</td>
+                    <td>${t.confidence}%</td>
+                    <td>${t.blocked ? '🚫' : t.color === 'green' ? '✅' : '⚠️'}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('packet-count').textContent =
+                `${data.length} packets`;
+        }
+
+        // ─── Update Stats ─────────────────────────────────────
+        function updateStats(data) {
+            counts = { normal: 0, severe: 0, moderate: 0, suspicious: 0 };
+            protoCounts = { TCP: 0, UDP: 0, ICMP: 0 };
+
+            data.forEach(t => {
+                const cat = (t.category || '').toUpperCase();
+                if      (cat === 'NORMAL')         counts.normal++;
+                else if (cat === 'SEVERE THREAT')  counts.severe++;
+                else if (cat === 'MODERATE THREAT') counts.moderate++;
+                else if (cat === 'SUSPICIOUS')     counts.suspicious++;
+
+                const proto = (t.protocol || '').toUpperCase();
+                if (protoCounts[proto] !== undefined) protoCounts[proto]++;
+            });
+
+            document.getElementById('cnt-normal').textContent    = counts.normal;
+            document.getElementById('cnt-severe').textContent    = counts.severe;
+            document.getElementById('cnt-moderate').textContent  = counts.moderate;
+            document.getElementById('cnt-suspicious').textContent = counts.suspicious;
+            document.getElementById('cnt-total').textContent     =
+                counts.normal + counts.severe + counts.moderate + counts.suspicious;
+        }
+
+        // ─── Update Charts ────────────────────────────────────
+        function updateCharts(data) {
+            const t = new Date().toLocaleTimeString();
+            lineLabels.push(t);
+            lineData.normal.push(counts.normal);
+            lineData.severe.push(counts.severe);
+            lineData.moderate.push(counts.moderate);
+            lineData.suspicious.push(counts.suspicious);
+
+            if (lineLabels.length > 15) {
+                lineLabels.shift();
+                Object.values(lineData).forEach(arr => arr.shift());
+            }
+
+            packetChart.data.labels          = lineLabels;
+            packetChart.data.datasets[0].data = lineData.normal;
+            packetChart.data.datasets[1].data = lineData.severe;
+            packetChart.data.datasets[2].data = lineData.moderate;
+            packetChart.data.datasets[3].data = lineData.suspicious;
+            packetChart.update();
+
+            protoChart.data.datasets[0].data =
+                [protoCounts.TCP, protoCounts.UDP, protoCounts.ICMP];
+            protoChart.update();
+        }
+
+        // Refresh every 1.5 seconds
+        setInterval(fetchTraffic, 1500);
+        fetchTraffic();
+    </script>
+</body>
+</html>

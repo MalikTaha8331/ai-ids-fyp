@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-IDS Dashboard</title>
+    <title>AI-IDS/IPS Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 </head>
@@ -11,9 +11,15 @@
 
     <!-- Header -->
     <div class="header">
-        <h1>🛡️ AI-Powered Intrusion Detection System</h1>
-        <p>Real-Time Network Threat Detection | NSL-KDD | Random Forest 99.92%</p>
+        <h1>🛡️ AI-Powered Intrusion Detection & Prevention System</h1>
+        <p>Real-Time Network Threat Detection & Auto-Blocking | NSL-KDD | Random Forest 99.92%</p>
         <span id="clock"></span>
+    </div>
+
+    <!-- Nav -->
+    <div class="nav-bar">
+        <a href="/" class="nav-btn active">🛡️ Main Dashboard</a>
+        <a href="/live" class="nav-btn">📡 Live Traffic</a>
     </div>
 
     <!-- Stats Cards -->
@@ -25,6 +31,22 @@
         <div class="card attack">
             <h2 id="total-attacks">0</h2>
             <p>🚨 Attacks Detected</p>
+        </div>
+        <div class="card severe">
+            <h2 id="total-severe">0</h2>
+            <p>🔴 Severe Threats</p>
+        </div>
+        <div class="card moderate">
+            <h2 id="total-moderate">0</h2>
+            <p>🟡 Moderate Threats</p>
+        </div>
+        <div class="card suspicious">
+            <h2 id="total-suspicious">0</h2>
+            <p>⚪ Suspicious</p>
+        </div>
+        <div class="card blocked">
+            <h2 id="total-blocked">0</h2>
+            <p>🚫 Auto Blocked</p>
         </div>
         <div class="card total">
             <h2 id="total-checked">0</h2>
@@ -43,7 +65,7 @@
             <canvas id="lineChart"></canvas>
         </div>
         <div class="chart-box">
-            <h3>🥧 Traffic Breakdown</h3>
+            <h3>🥧 Threat Breakdown</h3>
             <canvas id="pieChart"></canvas>
         </div>
     </div>
@@ -55,19 +77,40 @@
             <thead>
                 <tr>
                     <th>Time</th>
-                    <th>Status</th>
+                    <th>Category</th>
                     <th>Confidence</th>
                     <th>Protocol</th>
-                    <th>Src Bytes</th>
+                    <th>Src IP</th>
+                    <th>Description</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody id="alerts-table">
-                <tr><td colspan="5">No alerts yet...</td></tr>
+                <tr><td colspan="7">No alerts yet...</td></tr>
             </tbody>
         </table>
     </div>
 
-    <!-- Simulate Button -->
+    <!-- Blocked IPs Panel -->
+    <div class="blocked-section">
+        <h3>🚫 Blocked IPs</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>IP Address</th>
+                    <th>Time</th>
+                    <th>Reason</th>
+                    <th>Confidence</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="blocked-table">
+                <tr><td colspan="5">No blocked IPs...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Simulate Section -->
     <div class="simulate-section">
         <h3>⚡ Simulate Network Traffic</h3>
         <button onclick="simulateNormal()" class="btn-normal">
@@ -83,7 +126,7 @@
     </div>
 
     <script>
-        // ─── Clock ───────────────────────────────────────────
+        // ─── Clock ────────────────────────────────────────────
         function updateClock() {
             document.getElementById('clock').textContent =
                 new Date().toLocaleTimeString();
@@ -91,7 +134,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // ─── Charts Setup ────────────────────────────────────
+        // ─── Charts ───────────────────────────────────────────
         const lineCtx = document.getElementById('lineChart').getContext('2d');
         const pieCtx  = document.getElementById('pieChart').getContext('2d');
 
@@ -105,16 +148,28 @@
                         data: [],
                         borderColor: '#00e676',
                         backgroundColor: 'rgba(0,230,118,0.1)',
-                        tension: 0.4,
-                        fill: true
+                        tension: 0.4, fill: true
                     },
                     {
-                        label: 'Attack',
+                        label: 'Severe',
                         data: [],
                         borderColor: '#ff1744',
                         backgroundColor: 'rgba(255,23,68,0.1)',
-                        tension: 0.4,
-                        fill: true
+                        tension: 0.4, fill: true
+                    },
+                    {
+                        label: 'Moderate',
+                        data: [],
+                        borderColor: '#ffd740',
+                        backgroundColor: 'rgba(255,215,64,0.1)',
+                        tension: 0.4, fill: true
+                    },
+                    {
+                        label: 'Suspicious',
+                        data: [],
+                        borderColor: '#aaaaaa',
+                        backgroundColor: 'rgba(170,170,170,0.1)',
+                        tension: 0.4, fill: true
                     }
                 ]
             },
@@ -132,10 +187,10 @@
         const pieChart = new Chart(pieCtx, {
             type: 'doughnut',
             data: {
-                labels: ['Normal', 'Attack'],
+                labels: ['Normal', 'Severe', 'Moderate', 'Suspicious'],
                 datasets: [{
-                    data: [1, 0],
-                    backgroundColor: ['#00e676', '#ff1744'],
+                    data: [1, 0, 0, 0],
+                    backgroundColor: ['#00e676', '#ff1744', '#ffd740', '#aaaaaa'],
                     borderColor: '#1a1a2e',
                     borderWidth: 3
                 }]
@@ -147,59 +202,140 @@
         });
 
         // ─── Counters ─────────────────────────────────────────
-        let normalCount = 0;
-        let attackCount = 0;
-        let lineLabels  = [];
-        let lineNormal  = [];
-        let lineAttack  = [];
+        let counts = { normal: 0, severe: 0, moderate: 0, suspicious: 0, blocked: 0 };
+        let lineLabels = [], lineNormal = [], lineSevere = [], lineModerate = [], lineSuspicious = [];
 
-        function updateStats(label) {
-            if (label === 'NORMAL') normalCount++;
-            else attackCount++;
+        function updateStats(result) {
+            const cat = result.category;
+            if      (cat === 'NORMAL')         counts.normal++;
+            else if (cat === 'SEVERE THREAT')  counts.severe++;
+            else if (cat === 'MODERATE THREAT') counts.moderate++;
+            else if (cat === 'SUSPICIOUS')     counts.suspicious++;
+            if (result.blocked) counts.blocked++;
 
-            const total = normalCount + attackCount;
-            document.getElementById('total-normal').textContent  = normalCount;
-            document.getElementById('total-attacks').textContent = attackCount;
-            document.getElementById('total-checked').textContent = total;
+            const total = counts.normal + counts.severe + counts.moderate + counts.suspicious;
 
-            // Update pie chart
-            pieChart.data.datasets[0].data = [normalCount, attackCount];
+            document.getElementById('total-normal').textContent    = counts.normal;
+            document.getElementById('total-attacks').textContent   = counts.severe + counts.moderate + counts.suspicious;
+            document.getElementById('total-severe').textContent    = counts.severe;
+            document.getElementById('total-moderate').textContent  = counts.moderate;
+            document.getElementById('total-suspicious').textContent = counts.suspicious;
+            document.getElementById('total-blocked').textContent   = counts.blocked;
+            document.getElementById('total-checked').textContent   = total;
+
+            // Pie chart
+            pieChart.data.datasets[0].data = [counts.normal, counts.severe, counts.moderate, counts.suspicious];
             pieChart.update();
 
-            // Update line chart
+            // Line chart
             const t = new Date().toLocaleTimeString();
             lineLabels.push(t);
-            lineNormal.push(normalCount);
-            lineAttack.push(attackCount);
+            lineNormal.push(counts.normal);
+            lineSevere.push(counts.severe);
+            lineModerate.push(counts.moderate);
+            lineSuspicious.push(counts.suspicious);
             if (lineLabels.length > 15) {
-                lineLabels.shift(); lineNormal.shift(); lineAttack.shift();
+                lineLabels.shift(); lineNormal.shift();
+                lineSevere.shift(); lineModerate.shift(); lineSuspicious.shift();
             }
-            lineChart.data.labels                    = lineLabels;
-            lineChart.data.datasets[0].data          = lineNormal;
-            lineChart.data.datasets[1].data          = lineAttack;
+            lineChart.data.labels             = lineLabels;
+            lineChart.data.datasets[0].data   = lineNormal;
+            lineChart.data.datasets[1].data   = lineSevere;
+            lineChart.data.datasets[2].data   = lineModerate;
+            lineChart.data.datasets[3].data   = lineSuspicious;
             lineChart.update();
         }
 
         // ─── Alerts Table ─────────────────────────────────────
-        function addAlertRow(result, data) {
-            const tbody = document.getElementById('alerts-table');
-            if (tbody.innerHTML.includes('No alerts')) tbody.innerHTML = '';
+        function addAlertRow(result) {
+    const tbody = document.getElementById('alerts-table');
+    if (tbody.innerHTML.includes('No alerts')) tbody.innerHTML = '';
 
-            const row = document.createElement('tr');
-            row.className = result.label === 'ATTACK' ? 'row-attack' : 'row-normal';
-            row.innerHTML = `
-                <td>${new Date().toLocaleTimeString()}</td>
-                <td><span class="badge ${result.label === 'ATTACK' ? 'badge-attack' : 'badge-normal'}">
-                    ${result.label}</span></td>
-                <td>${result.confidence}%</td>
-                <td>${data.protocol_type}</td>
-                <td>${data.src_bytes}</td>
-            `;
-            tbody.insertBefore(row, tbody.firstChild);
-            if (tbody.rows.length > 10) tbody.deleteRow(tbody.rows.length - 1);
+    const category    = result.category    || 'UNKNOWN';
+    const confidence  = result.confidence  || 0;
+    const src_ip      = result.src_ip      || 'N/A';
+    const description = result.description || 'N/A';
+    const color       = result.color       || 'gray';
+    const protocol    = result.protocol    || 'tcp';
+
+    const blockBtn = result.show_block
+        ? `<button class="btn-block-sm" onclick="manualBlock('${src_ip}', ${confidence})">
+             🚫 Block
+           </button>`
+        : result.blocked
+        ? `<span class="auto-blocked-badge">🚫 Auto-Blocked</span>`
+        : '—';
+
+    const row = document.createElement('tr');
+    row.className = `row-${color}`;
+    row.innerHTML = `
+        <td>${new Date().toLocaleTimeString()}</td>
+        <td><span class="badge badge-${color}">${category}</span></td>
+        <td>${confidence}%</td>
+        <td>${protocol}</td>
+        <td>${src_ip}</td>
+        <td style="font-size:0.8rem">${description}</td>
+        <td>${blockBtn}</td>
+    `;
+    tbody.insertBefore(row, tbody.firstChild);
+    if (tbody.rows.length > 10) tbody.deleteRow(tbody.rows.length - 1);
+}
+
+        // ─── Blocked IPs Table ────────────────────────────────
+        async function refreshBlockedTable() {
+            const res  = await fetch('/blocked');
+            const data = await res.json();
+            const tbody = document.getElementById('blocked-table');
+
+            if (Object.keys(data).length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5">No blocked IPs...</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            for (const [ip, info] of Object.entries(data)) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${ip}</strong></td>
+                    <td>${info.time}</td>
+                    <td>${info.reason}</td>
+                    <td>${info.confidence}%</td>
+                    <td>
+                        <button class="btn-unblock-sm" onclick="unblockIP('${ip}')">
+                            ✅ Unblock
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            }
         }
 
-        // ─── Predict Function ─────────────────────────────────
+        // ─── Block / Unblock Functions ────────────────────────
+        async function manualBlock(ip, confidence) {
+            await fetch('/block', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ ip, confidence })
+            });
+            counts.blocked++;
+            document.getElementById('total-blocked').textContent = counts.blocked;
+            refreshBlockedTable();
+            alert(`🚫 IP ${ip} has been blocked!`);
+        }
+
+        async function unblockIP(ip) {
+            await fetch('/unblock', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ ip })
+            });
+            refreshBlockedTable();
+        }
+
+        // Refresh blocked table every 3 seconds
+        setInterval(refreshBlockedTable, 3000);
+
+        // ─── Predict ──────────────────────────────────────────
         async function predict(data) {
             const res    = await fetch('/predict', {
                 method:  'POST',
@@ -208,16 +344,23 @@
             });
             const result = await res.json();
 
-            updateStats(result.label);
-            addAlertRow(result, data);
+            updateStats(result);
+            addAlertRow(result);
+
+            if (result.blocked) refreshBlockedTable();
 
             const box = document.getElementById('result-box');
-            box.className   = result.label === 'ATTACK' ? 'result-attack' : 'result-normal';
-            box.textContent = `${result.label === 'ATTACK' ? '🚨' : '✅'} 
-                ${result.label} — Confidence: ${result.confidence}%`;
+            const icons = {
+                'NORMAL':         '✅',
+                'SUSPICIOUS':     '⚪',
+                'MODERATE THREAT': '🟡',
+                'SEVERE THREAT':  '🔴'
+            };
+            box.className   = `result-${result.color}`;
+            box.textContent = `${icons[result.category] || '🔍'} ${result.category} — Confidence: ${result.confidence}%${result.blocked ? ' — 🚫 AUTO-BLOCKED!' : ''}`;
         }
 
-        // ─── Sample Traffic Data ──────────────────────────────
+        // ─── Sample Traffic ───────────────────────────────────
         function normalTraffic() {
             return {
                 duration: 0, protocol_type: 'tcp', service: 'http',
@@ -259,7 +402,6 @@
             };
         }
 
-        // ─── Buttons ──────────────────────────────────────────
         function simulateNormal() { predict(normalTraffic()); }
         function simulateAttack() { predict(attackTraffic()); }
 
