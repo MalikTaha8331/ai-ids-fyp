@@ -230,3 +230,58 @@ select:focus { outline: none; border-color: #00e5ff; }
 .proto-tcp  { background: #1565c0; color: #fff; }
 .proto-udp  { background: #2e7d32; color: #fff; }
 .proto-icmp { background: #f57f17; color: #000; }
+
+/* ─── Clickable Cards ────────────────────────────── */
+.card.clickable {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.card.clickable:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+.card-active {
+    box-shadow: 0 0 0 3px #00e5ff !important;
+    transform: translateY(-3px) !important;
+}
+
+.card-hint {
+    display: block;
+    font-size: 0.72rem;
+    color: #666;
+    margin-top: 4px;
+}
+
+/* ─── Filter Banner ──────────────────────────────── */
+.filter-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #0f3460;
+    border-radius: 8px;
+    padding: 10px 20px;
+    margin-bottom: 16px;
+    border: 1px solid #2E75B6;
+}
+
+.filter-banner span {
+    color: #90caf9;
+    font-weight: bold;
+}
+
+.btn-clear-filter {
+    background: transparent;
+    color: #ff6b6b;
+    border: 1px solid #ff6b6b;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.btn-clear-filter:hover {
+    background: #ff6b6b;
+    color: white;
+}

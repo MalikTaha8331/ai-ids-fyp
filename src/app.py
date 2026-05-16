@@ -154,6 +154,6 @@ def get_traffic():
     return jsonify(filtered)
 
 if __name__ == '__main__':
-    print("🚀 AI-IDS/IPS Server starting...")
+    print("⚔️  CyberSentinel Starting...")
     print("📊 Dashboard: http://127.0.0.1:5000")
     app.run(debug=True, host='0.0.0.0', port=5000)

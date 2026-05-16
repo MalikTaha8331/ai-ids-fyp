@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-IDS/IPS Dashboard</title>
+    <title>CyberSentinel — AI Intrusion Prevention System</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 </head>
@@ -11,8 +11,8 @@
 
     <!-- Header -->
     <div class="header">
-        <h1>🛡️ AI-Powered Intrusion Detection & Prevention System</h1>
-        <p>Real-Time Network Threat Detection & Auto-Blocking | NSL-KDD | Random Forest 99.92%</p>
+        <h1>⚔️ CyberSentinel</h1>
+        <p>AI-Powered Intrusion Detection & Prevention System | NSL-KDD | Random Forest 99.92%</p>
         <span id="clock"></span>
     </div>
 
@@ -24,38 +24,51 @@
 
     <!-- Stats Cards -->
     <div class="cards">
-        <div class="card normal">
+        <div class="card normal clickable" onclick="filterAlerts('normal')">
             <h2 id="total-normal">0</h2>
             <p>✅ Normal Traffic</p>
+            <span class="card-hint">Click to filter</span>
         </div>
-        <div class="card attack">
+        <div class="card attack clickable" onclick="filterAlerts('attack')">
             <h2 id="total-attacks">0</h2>
             <p>🚨 Attacks Detected</p>
+            <span class="card-hint">Click to filter</span>
         </div>
-        <div class="card severe">
+        <div class="card severe clickable" onclick="filterAlerts('severe')">
             <h2 id="total-severe">0</h2>
             <p>🔴 Severe Threats</p>
+            <span class="card-hint">Click to filter</span>
         </div>
-        <div class="card moderate">
+        <div class="card moderate clickable" onclick="filterAlerts('moderate')">
             <h2 id="total-moderate">0</h2>
             <p>🟡 Moderate Threats</p>
+            <span class="card-hint">Click to filter</span>
         </div>
-        <div class="card suspicious">
+        <div class="card suspicious clickable" onclick="filterAlerts('suspicious')">
             <h2 id="total-suspicious">0</h2>
             <p>⚪ Suspicious</p>
+            <span class="card-hint">Click to filter</span>
         </div>
-        <div class="card blocked">
+        <div class="card blocked clickable" onclick="filterAlerts('blocked')">
             <h2 id="total-blocked">0</h2>
             <p>🚫 Auto Blocked</p>
+            <span class="card-hint">Click to filter</span>
         </div>
-        <div class="card total">
+        <div class="card total clickable" onclick="filterAlerts('all')">
             <h2 id="total-checked">0</h2>
             <p>🔍 Total Checked</p>
+            <span class="card-hint">Click to show all</span>
         </div>
         <div class="card accuracy">
             <h2>99.92%</h2>
             <p>🎯 Model Accuracy</p>
         </div>
+    </div>
+
+    <!-- Active Filter Banner -->
+    <div id="filter-banner" style="display:none" class="filter-banner">
+        <span id="filter-text">Showing all alerts</span>
+        <button onclick="filterAlerts('all')" class="btn-clear-filter">✕ Clear Filter</button>
     </div>
 
     <!-- Charts Row -->
@@ -281,6 +294,85 @@
     if (tbody.rows.length > 10) tbody.deleteRow(tbody.rows.length - 1);
 }
 
+        // ─── Card Filter Function ─────────────────────────
+        let allAlerts = [];
+
+        function filterAlerts(type) {
+            const banner = document.getElementById('filter-banner');
+            const filterText = document.getElementById('filter-text');
+            const tbody = document.getElementById('alerts-table');
+
+            // Remove active class from all cards
+            document.querySelectorAll('.card.clickable').forEach(c => c.classList.remove('card-active'));
+
+            let filtered = [];
+            let label = '';
+
+            if (type === 'all') {
+                filtered = allAlerts;
+                label = 'Showing all alerts';
+                banner.style.display = 'none';
+            } else {
+                // Add active class to clicked card
+                const cardMap = {
+                    'normal':   0, 'attack': 1, 'severe': 2,
+                    'moderate': 3, 'suspicious': 4, 'blocked': 5, 'all': 6
+                };
+                document.querySelectorAll('.card.clickable')[cardMap[type]]?.classList.add('card-active');
+
+                if (type === 'normal') {
+                    filtered = allAlerts.filter(a => a.category === 'NORMAL');
+                    label = '✅ Showing Normal Traffic only';
+                } else if (type === 'attack') {
+                    filtered = allAlerts.filter(a => a.category !== 'NORMAL');
+                    label = '🚨 Showing all Attacks only';
+                } else if (type === 'severe') {
+                    filtered = allAlerts.filter(a => a.category === 'SEVERE THREAT');
+                    label = '🔴 Showing Severe Threats only';
+                } else if (type === 'moderate') {
+                    filtered = allAlerts.filter(a => a.category === 'MODERATE THREAT');
+                    label = '🟡 Showing Moderate Threats only';
+                } else if (type === 'suspicious') {
+                    filtered = allAlerts.filter(a => a.category === 'SUSPICIOUS');
+                    label = '⚪ Showing Suspicious Traffic only';
+                } else if (type === 'blocked') {
+                    filtered = allAlerts.filter(a => a.blocked === true);
+                    label = '🚫 Showing Auto-Blocked only';
+                }
+
+                banner.style.display = 'flex';
+                filterText.textContent = label;
+            }
+
+            // Render filtered alerts
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center">No ${type} traffic yet...</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            [...filtered].reverse().slice(0, 10).forEach(result => {
+                const blockBtn = result.show_block
+                    ? `<button class="btn-block-sm" onclick="manualBlock('${result.src_ip}', ${result.confidence})">🚫 Block</button>`
+                    : result.blocked
+                    ? `<span class="auto-blocked-badge">🚫 Auto-Blocked</span>`
+                    : '—';
+
+                const row = document.createElement('tr');
+                row.className = `row-${result.color}`;
+                row.innerHTML = `
+                    <td>${result.time}</td>
+                    <td><span class="badge badge-${result.color}">${result.category}</span></td>
+                    <td>${result.confidence}%</td>
+                    <td>${result.protocol || 'tcp'}</td>
+                    <td>${result.src_ip}</td>
+                    <td style="font-size:0.8rem">${result.description}</td>
+                    <td>${blockBtn}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
         // ─── Blocked IPs Table ────────────────────────────────
         async function refreshBlockedTable() {
             const res  = await fetch('/blocked');
@@ -344,7 +436,12 @@
             });
             const result = await res.json();
 
+            // Add to allAlerts for filtering
+            result.time = new Date().toLocaleTimeString();
+
             updateStats(result);
+            allAlerts.push(result);
+            if (allAlerts.length > 500) allAlerts.shift();
             addAlertRow(result);
 
             if (result.blocked) refreshBlockedTable();
